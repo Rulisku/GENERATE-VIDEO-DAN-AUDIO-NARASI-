@@ -1,0 +1,157 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Video + Audio MP4 Generator</title>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+
+<style>
+body{
+  background:#111;
+  color:white;
+  font-family:sans-serif;
+  padding:20px;
+}
+
+.container{
+  max-width:500px;
+  margin:auto;
+}
+
+input,button{
+  width:100%;
+  margin-top:15px;
+  padding:12px;
+  border-radius:10px;
+}
+
+button{
+  background:#00b894;
+  color:white;
+  border:none;
+  font-size:18px;
+}
+
+video{
+  width:100%;
+  margin-top:20px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Generate MP4 Video</h2>
+
+<input type="file" id="videoInput" accept="video/*">
+<input type="file" id="audioInput" accept="audio/*">
+
+<button onclick="generateMP4()">
+Generate MP4
+</button>
+
+<video id="preview" controls></video>
+
+<a id="downloadBtn"
+style="
+display:none;
+padding:12px;
+background:#0984e3;
+color:white;
+text-decoration:none;
+border-radius:10px;
+display:block;
+margin-top:20px;
+text-align:center;
+">
+Download MP4
+</a>
+
+</div>
+
+<script>
+
+const { FFmpeg } = FFmpegWASM;
+
+async function generateMP4(){
+
+  const videoFile =
+    document.getElementById("videoInput").files[0];
+
+  const audioFile =
+    document.getElementById("audioInput").files[0];
+
+  if(!videoFile || !audioFile){
+    alert("Upload video & audio dulu");
+    return;
+  }
+
+  const ffmpeg = new FFmpeg();
+
+  await ffmpeg.load();
+
+  // write files
+  await ffmpeg.writeFile(
+    "video.mp4",
+    new Uint8Array(await videoFile.arrayBuffer())
+  );
+
+  await ffmpeg.writeFile(
+    "audio.mp3",
+    new Uint8Array(await audioFile.arrayBuffer())
+  );
+
+  // merge
+  await ffmpeg.exec([
+    "-i",
+    "video.mp4",
+
+    "-i",
+    "audio.mp3",
+
+    "-c:v",
+    "copy",
+
+    "-c:a",
+    "aac",
+
+    "-shortest",
+
+    "output.mp4"
+  ]);
+
+  // read result
+  const data =
+    await ffmpeg.readFile("output.mp4");
+
+  const blob =
+    new Blob([data.buffer],{
+      type:"video/mp4"
+    });
+
+  const url =
+    URL.createObjectURL(blob);
+
+  // preview
+  document.getElementById("preview").src = url;
+
+  // download
+  const a =
+    document.getElementById("downloadBtn");
+
+  a.href = url;
+  a.download = "hasil-video.mp4";
+  a.style.display = "block";
+}
+
+</script>
+
+</body>
+</html>
+```
