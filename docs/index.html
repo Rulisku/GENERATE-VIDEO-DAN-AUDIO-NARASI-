@@ -1,122 +1,330 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video + Audio MP4 Generator</title>
-    
-    <!-- 1. MERUBAH: Mengganti script FFmpeg ke versi v0.11.0 (Single-thread) -->
-    <!-- Tidak perlu lagi coi-serviceworker.js yang bikin pusing di HP -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
-    
-    <style>
-        body { background: #111; color: white; font-family: sans-serif; padding: 20px; }
-        .container { max-width: 500px; margin: auto; }
-        input, button { width: 100%; margin-top: 15px; padding: 12px; border-radius: 10px; box-sizing: border-box; }
-        button { background: #00b894; color: white; border: none; font-size: 18px; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #555; cursor: not-allowed; }
-        video { width: 100%; margin-top: 20px; border-radius: 10px; display: none; }
-        #status { text-align: center; margin-top: 15px; color: #ffeaa7; font-size: 14px; }
-        #downloadBtn { display: none; padding: 12px; background: #0984e3; color: white; text-decoration: none; border-radius: 10px; margin-top: 20px; text-align: center; font-weight: bold; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Video + Audio MP4 Generator</title>
+
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+
+<style>
+
+body{
+    background:#111;
+    color:white;
+    font-family:sans-serif;
+    padding:20px;
+}
+
+.container{
+    max-width:500px;
+    margin:auto;
+}
+
+h2{
+    text-align:center;
+}
+
+input,
+button{
+    width:100%;
+    margin-top:15px;
+    padding:12px;
+    border-radius:10px;
+    box-sizing:border-box;
+}
+
+button{
+    background:#00b894;
+    color:white;
+    border:none;
+    font-size:18px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+button:disabled{
+    background:#555;
+    cursor:not-allowed;
+}
+
+video{
+    width:100%;
+    margin-top:20px;
+    border-radius:10px;
+    display:none;
+}
+
+#status{
+    text-align:center;
+    margin-top:15px;
+    color:#ffeaa7;
+    font-size:16px;
+    font-weight:bold;
+}
+
+#downloadBtn{
+    display:none;
+    padding:12px;
+    background:#0984e3;
+    color:white;
+    text-decoration:none;
+    border-radius:10px;
+    margin-top:20px;
+    text-align:center;
+    font-weight:bold;
+}
+
+</style>
 </head>
+
 <body>
-    <div class="container">
-        <h2>Generate MP4 Video</h2>
-        <input type="file" id="videoInput" accept="video/*">
-        <input type="file" id="audioInput" accept="audio/*">
-        <button id="actionBtn" onclick="generateMP4()">Generate MP4</button>
-        <div id="status"></div>
-        <video id="preview" controls></video>
-        <a id="downloadBtn">Download MP4</a>
-    </div>
 
-    <script>
-        // 2. MERUBAH: Cara memanggil fungsi FFmpeg disesuaikan ke versi 0.11.0
-        const { createFFmpeg, fetchFile } = FFmpeg;
-        
-        // Memaksa FFmpeg memuat core single-thread dari CDN unpkg
-        const ffmpeg = createFFmpeg({ 
-            ffmpeg.setProgress(({ ratio }) => {
+<div class="container">
 
-  
-            log: true,
-            corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
-        });
+<h2>Generate MP4 Video</h2>
 
-        ffmpeg.setProgress(({ ratio }) => {
+<input
+type="file"
+id="videoInput"
+accept="video/*">
 
-  const percent =
-    Math.round(ratio * 100);
+<input
+type="file"
+id="audioInput"
+accept="audio/*">
 
-  statusDiv.innerText =
-    "Rendering: " + percent + "%";
+<button
+id="actionBtn"
+onclick="generateMP4()">
+
+Generate MP4
+
+</button>
+
+<div id="status"></div>
+
+<video
+id="preview"
+controls>
+</video>
+
+<a id="downloadBtn">
+Download MP4
+</a>
+
+</div>
+
+<script>
+
+const { createFFmpeg, fetchFile } = FFmpeg;
+
+const statusDiv =
+document.getElementById("status");
+
+const actionBtn =
+document.getElementById("actionBtn");
+
+const ffmpeg = createFFmpeg({
+
+    log:true,
+
+    corePath:
+    'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
 });
 
-        async function generateMP4() {
-            const videoFile = document.getElementById("videoInput").files[0];
-            const audioFile = document.getElementById("audioInput").files[0];
-            const statusDiv = document.getElementById("status");
-            const actionBtn = document.getElementById("actionBtn");
+// realtime progress
+ffmpeg.setProgress(({ ratio }) => {
 
-            if (!videoFile || !audioFile) {
-                alert("Upload video & audio dulu ya!");
-                return;
-            }
+    if(ratio >= 0 && ratio <= 1){
 
-            try {
-                actionBtn.disabled = true;
-                
-                // 3. MERUBAH: Mengganti ffmpeg.load() dengan pengecekan isLoaded() khas v0.11.0
-                if (!ffmpeg.isLoaded()) {
-                    statusDiv.innerText = "Memuat FFmpeg core (tunggu sekitar 5-10 detik)...";
-                    await ffmpeg.load();
-                }
+        const percent =
+        Math.round(ratio * 100);
 
-                statusDiv.innerText = "Membaca data file video & audio...";
-                
-                // 4. MERUBAH: Sistem tulis file diganti dari `writeFile` ke `FS("writeFile", ...)`
-                ffmpeg.FS("writeFile", "video.mp4", await fetchFile(videoFile));
-                ffmpeg.FS("writeFile", "audio.mp3", await fetchFile(audioFile));
+        statusDiv.innerText =
+        "Rendering: " + percent + "%";
+    }
+});
 
-                statusDiv.innerText = "Sedang menggabungkan (proses render sedang berjalan)...";
-                
-                // 5. MERUBAH: Mengganti `ffmpeg.exec` menjadi `ffmpeg.run`
-                await ffmpeg.run(
-                    "-i", "video.mp4",
-                    "-i", "audio.mp3",
-                    "-c:v", "copy",
-                    "-c:a", "aac",
-                    "-shortest",
-                    "output.mp4"
-                );
+async function generateMP4(){
 
-                statusDiv.innerText = "Mengekstrak hasil render...";
-                
-                // 6. MERUBAH: Sistem baca file diganti dari `readFile` ke `FS("readFile", ...)`
-                const data = ffmpeg.FS("readFile", "output.mp4");
-                const blob = new Blob([data.buffer], { type: "video/mp4" });
-                const url = URL.createObjectURL(blob);
+    const videoFile =
+    document.getElementById("videoInput").files[0];
 
-                // Tampilkan video preview
-                const preview = document.getElementById("preview");
-                preview.src = url;
-                preview.style.display = "block";
+    const audioFile =
+    document.getElementById("audioInput").files[0];
 
-                // Setup tombol download
-                const a = document.getElementById("downloadBtn");
-                a.href = url;
-                a.download = "hasil-video.mp4";
-                a.style.display = "block";
+    if(!videoFile || !audioFile){
 
-                statusDiv.innerText = "Selesai! Silakan cek pratinjau atau unduh.";
-            } catch (error) {
-                console.error(error);
-                statusDiv.innerText = "Terjadi kesalahan saat memproses video: " + error.message;
-            } finally {
-                actionBtn.disabled = false;
-            }
+        alert("Upload video & audio dulu ya!");
+
+        return;
+    }
+
+    // limit size
+    if(videoFile.size > 100 * 1024 * 1024){
+
+        alert("Video terlalu besar max 100MB");
+
+        return;
+    }
+
+    try{
+
+        actionBtn.disabled = true;
+
+        actionBtn.innerText =
+        "Loading...";
+
+        // load ffmpeg pertama kali
+        if(!ffmpeg.isLoaded()){
+
+            statusDiv.innerText =
+            "Memuat FFmpeg core...";
+
+            await ffmpeg.load();
         }
-    </script>
+
+        actionBtn.innerText =
+        "Processing...";
+
+        statusDiv.innerText =
+        "Membaca file video & audio...";
+
+        // write files
+        ffmpeg.FS(
+            "writeFile",
+            "video.mp4",
+            await fetchFile(videoFile)
+        );
+
+        ffmpeg.FS(
+            "writeFile",
+            "audio.mp3",
+            await fetchFile(audioFile)
+        );
+
+        statusDiv.innerText =
+        "Memulai render...";
+
+        // merge process
+        await ffmpeg.run(
+
+            "-i",
+            "video.mp4",
+
+            "-i",
+            "audio.mp3",
+
+            "-map",
+            "0:v:0",
+
+            "-map",
+            "1:a:0",
+
+            "-c:v",
+            "copy",
+
+            "-c:a",
+            "aac",
+
+            "-shortest",
+
+            "output.mp4"
+        );
+
+        statusDiv.innerText =
+        "Mengekstrak hasil...";
+
+        // read output
+        const data =
+        ffmpeg.FS(
+            "readFile",
+            "output.mp4"
+        );
+
+        const blob =
+        new Blob(
+            [data.buffer],
+            {
+                type:"video/mp4"
+            }
+        );
+
+        const url =
+        URL.createObjectURL(blob);
+
+        // auto clear memory
+        setTimeout(() => {
+
+            URL.revokeObjectURL(url);
+
+        }, 60000);
+
+        // preview
+        const preview =
+        document.getElementById("preview");
+
+        preview.src = url;
+
+        preview.style.display =
+        "block";
+
+        // auto scroll
+        preview.scrollIntoView({
+            behavior:"smooth"
+        });
+
+        // download
+        const downloadBtn =
+        document.getElementById("downloadBtn");
+
+        downloadBtn.href = url;
+
+        downloadBtn.download =
+        "hasil-video.mp4";
+
+        downloadBtn.style.display =
+        "block";
+
+        // clear ffmpeg memory
+        ffmpeg.FS(
+            "unlink",
+            "video.mp4"
+        );
+
+        ffmpeg.FS(
+            "unlink",
+            "audio.mp3"
+        );
+
+        ffmpeg.FS(
+            "unlink",
+            "output.mp4"
+        );
+
+        statusDiv.innerText =
+        "Selesai! Video berhasil dibuat.";
+
+    }catch(error){
+
+        console.error(error);
+
+        statusDiv.innerText =
+        "Terjadi kesalahan: " +
+        error.message;
+
+    }finally{
+
+        actionBtn.disabled = false;
+
+        actionBtn.innerText =
+        "Generate MP4";
+    }
+}
+
+</script>
+
 </body>
-</html>
+    </html>
