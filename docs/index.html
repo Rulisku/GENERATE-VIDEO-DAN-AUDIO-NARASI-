@@ -1,157 +1,102 @@
-```html
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Video + Audio MP4 Generator</title>
-
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
-
-<style>
-body{
-  background:#111;
-  color:white;
-  font-family:sans-serif;
-  padding:20px;
-}
-
-.container{
-  max-width:500px;
-  margin:auto;
-}
-
-input,button{
-  width:100%;
-  margin-top:15px;
-  padding:12px;
-  border-radius:10px;
-}
-
-button{
-  background:#00b894;
-  color:white;
-  border:none;
-  font-size:18px;
-}
-
-video{
-  width:100%;
-  margin-top:20px;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video + Audio MP4 Generator</title>
+  <script src="coi-serviceworker.js"></script>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.umd.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <style>
+        body { background: #111; color: white; font-family: sans-serif; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        input, button { width: 100%; margin-top: 15px; padding: 12px; border-radius: 10px; box-sizing: border-box; }
+        button { background: #00b894; color: white; border: none; font-size: 18px; cursor: pointer; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        video { width: 100%; margin-top: 20px; border-radius: 10px; display: none; }
+        #status { text-align: center; margin-top: 10px; color: #ffeaa7; }
+        #downloadBtn { display: none; padding: 12px; background: #0984e3; color: white; text-decoration: none; border-radius: 10px; margin-top: 20px; text-align: center; }
+    </style>
 </head>
-
 <body>
+    <div class="container">
+        <h2>Generate MP4 Video</h2>
+        <input type="file" id="videoInput" accept="video/*">
+        <input type="file" id="audioInput" accept="audio/*">
+        <button id="actionBtn" onclick="generateMP4()">Generate MP4</button>
+        <div id="status"></div>
+        <video id="preview" controls></video>
+        <a id="downloadBtn">Download MP4</a>
+    </div>
 
-<div class="container">
+    <script>
+        // Memanggil utilitas bawaan versi 0.12.x
+        const { FFmpeg } = FFmpegWASM;
+        const { fetchFile } = FFmpegUtil;
+        let ffmpeg = null;
 
-<h2>Generate MP4 Video</h2>
+        async function generateMP4() {
+            const videoFile = document.getElementById("videoInput").files[0];
+            const audioFile = document.getElementById("audioInput").files[0];
+            const statusDiv = document.getElementById("status");
+            const actionBtn = document.getElementById("actionBtn");
 
-<input type="file" id="videoInput" accept="video/*">
-<input type="file" id="audioInput" accept="audio/*">
+            if (!videoFile || !audioFile) {
+                alert("Upload video & audio dulu ya!");
+                return;
+            }
 
-<button onclick="generateMP4()">
-Generate MP4
-</button>
+            try {
+                actionBtn.disabled = true;
+                statusDiv.innerText = "Memuat FFmpeg core (tunggu sebentar)...";
 
-<video id="preview" controls></video>
+                if (!ffmpeg) {
+                    ffmpeg = new FFmpeg();
+                    // Menangkap log proses jika ingin debugging di console
+                    ffmpeg.on('log', ({ message }) => console.log(message));
+                    await ffmpeg.load();
+                }
 
-<a id="downloadBtn"
-style="
-display:none;
-padding:12px;
-background:#0984e3;
-color:white;
-text-decoration:none;
-border-radius:10px;
-display:block;
-margin-top:20px;
-text-align:center;
-">
-Download MP4
-</a>
+                statusDiv.innerText = "Membaca data file...";
+                // Cara baca file yang benar di versi baru menggunakan fetchFile
+                await ffmpeg.writeFile("video.mp4", await fetchFile(videoFile));
+                await ffmpeg.writeFile("audio.mp3", await fetchFile(audioFile));
 
-</div>
+                statusDiv.innerText = "Sedang menggabungkan audio & video...";
+                // Proses merge
+                await ffmpeg.exec([
+                    "-i", "video.mp4",
+                    "-i", "audio.mp3",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-shortest",
+                    "output.mp4"
+                ]);
 
-<script>
+                statusDiv.innerText = "Finishing...";
+                const data = await ffmpeg.readFile("output.mp4");
+                const blob = new Blob([data], { type: "video/mp4" });
+                const url = URL.createObjectURL(blob);
 
-const { FFmpeg } = FFmpegWASM;
+                // Tampilkan ke video preview
+                const preview = document.getElementById("preview");
+                preview.src = url;
+                preview.style.display = "block";
 
-async function generateMP4(){
+                // Setup tombol download
+                const a = document.getElementById("downloadBtn");
+                a.href = url;
+                a.download = "hasil-video.mp4";
+                a.style.display = "block";
 
-  const videoFile =
-    document.getElementById("videoInput").files[0];
-
-  const audioFile =
-    document.getElementById("audioInput").files[0];
-
-  if(!videoFile || !audioFile){
-    alert("Upload video & audio dulu");
-    return;
-  }
-
-  const ffmpeg = new FFmpeg();
-
-  await ffmpeg.load();
-
-  // write files
-  await ffmpeg.writeFile(
-    "video.mp4",
-    new Uint8Array(await videoFile.arrayBuffer())
-  );
-
-  await ffmpeg.writeFile(
-    "audio.mp3",
-    new Uint8Array(await audioFile.arrayBuffer())
-  );
-
-  // merge
-  await ffmpeg.exec([
-    "-i",
-    "video.mp4",
-
-    "-i",
-    "audio.mp3",
-
-    "-c:v",
-    "copy",
-
-    "-c:a",
-    "aac",
-
-    "-shortest",
-
-    "output.mp4"
-  ]);
-
-  // read result
-  const data =
-    await ffmpeg.readFile("output.mp4");
-
-  const blob =
-    new Blob([data.buffer],{
-      type:"video/mp4"
-    });
-
-  const url =
-    URL.createObjectURL(blob);
-
-  // preview
-  document.getElementById("preview").src = url;
-
-  // download
-  const a =
-    document.getElementById("downloadBtn");
-
-  a.href = url;
-  a.download = "hasil-video.mp4";
-  a.style.display = "block";
-}
-
-</script>
-
+                statusDiv.innerText = "Selesai!";
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = "Gagal memproses file. Pastikan browser mendukung SharedArrayBuffer.";
+            } finally {
+                actionBtn.disabled = false;
+            }
+        }
+    </script>
 </body>
 </html>
-```
