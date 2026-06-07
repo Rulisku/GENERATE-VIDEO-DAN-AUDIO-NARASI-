@@ -1,0 +1,66 @@
+```yaml id="zv3x7t"
+name: Render MP4
+
+on:
+
+  workflow_dispatch:
+
+    inputs:
+
+      video_url:
+        required: true
+        type: string
+
+      audio_url:
+        required: true
+        type: string
+
+jobs:
+
+  render:
+
+    runs-on: ubuntu-latest
+
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup FFmpeg
+      uses: FedericoCarboni/setup-ffmpeg@v3
+
+    - name: Download Video
+      run: |
+
+        wget \
+        "${{ github.event.inputs.video_url }}" \
+        -O video.mp4
+
+    - name: Download Audio
+      run: |
+
+        wget \
+        "${{ github.event.inputs.audio_url }}" \
+        -O audio.mp3
+
+    - name: Merge
+      run: |
+
+        ffmpeg \
+        -i video.mp4 \
+        -i audio.mp3 \
+        -c:v copy \
+        -c:a aac \
+        -shortest \
+        output.mp4
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+
+      with:
+        name: hasil-video
+        path: output.mp4
+```
