@@ -4,19 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video + Audio MP4 Generator</title>
-  <script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.js"></script>
     
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.umd.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <!-- 1. MERUBAH: Mengganti script FFmpeg ke versi v0.11.0 (Single-thread) -->
+    <!-- Tidak perlu lagi coi-serviceworker.js yang bikin pusing di HP -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    
     <style>
         body { background: #111; color: white; font-family: sans-serif; padding: 20px; }
         .container { max-width: 500px; margin: auto; }
         input, button { width: 100%; margin-top: 15px; padding: 12px; border-radius: 10px; box-sizing: border-box; }
-        button { background: #00b894; color: white; border: none; font-size: 18px; cursor: pointer; }
+        button { background: #00b894; color: white; border: none; font-size: 18px; cursor: pointer; font-weight: bold; }
         button:disabled { background: #555; cursor: not-allowed; }
         video { width: 100%; margin-top: 20px; border-radius: 10px; display: none; }
-        #status { text-align: center; margin-top: 10px; color: #ffeaa7; }
-        #downloadBtn { display: none; padding: 12px; background: #0984e3; color: white; text-decoration: none; border-radius: 10px; margin-top: 20px; text-align: center; }
+        #status { text-align: center; margin-top: 15px; color: #ffeaa7; font-size: 14px; }
+        #downloadBtn { display: none; padding: 12px; background: #0984e3; color: white; text-decoration: none; border-radius: 10px; margin-top: 20px; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -31,10 +32,26 @@
     </div>
 
     <script>
-        // Memanggil utilitas bawaan versi 0.12.x
-        const { FFmpeg } = FFmpegWASM;
-        const { fetchFile } = FFmpegUtil;
-        let ffmpeg = null;
+        // 2. MERUBAH: Cara memanggil fungsi FFmpeg disesuaikan ke versi 0.11.0
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        
+        // Memaksa FFmpeg memuat core single-thread dari CDN unpkg
+        const ffmpeg = createFFmpeg({ 
+            ffmpeg.setProgress(({ ratio }) => {
+
+  
+            log: true,
+            corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
+        });
+
+        ffmpeg.setProgress(({ ratio }) => {
+
+  const percent =
+    Math.round(ratio * 100);
+
+  statusDiv.innerText =
+    "Rendering: " + percent + "%";
+});
 
         async function generateMP4() {
             const videoFile = document.getElementById("videoInput").files[0];
@@ -49,37 +66,39 @@
 
             try {
                 actionBtn.disabled = true;
-                statusDiv.innerText = "Memuat FFmpeg core (tunggu sebentar)...";
-
-                if (!ffmpeg) {
-                    ffmpeg = new FFmpeg();
-                    // Menangkap log proses jika ingin debugging di console
-                    ffmpeg.on('log', ({ message }) => console.log(message));
+                
+                // 3. MERUBAH: Mengganti ffmpeg.load() dengan pengecekan isLoaded() khas v0.11.0
+                if (!ffmpeg.isLoaded()) {
+                    statusDiv.innerText = "Memuat FFmpeg core (tunggu sekitar 5-10 detik)...";
                     await ffmpeg.load();
                 }
 
-                statusDiv.innerText = "Membaca data file...";
-                // Cara baca file yang benar di versi baru menggunakan fetchFile
-                await ffmpeg.writeFile("video.mp4", await fetchFile(videoFile));
-                await ffmpeg.writeFile("audio.mp3", await fetchFile(audioFile));
+                statusDiv.innerText = "Membaca data file video & audio...";
+                
+                // 4. MERUBAH: Sistem tulis file diganti dari `writeFile` ke `FS("writeFile", ...)`
+                ffmpeg.FS("writeFile", "video.mp4", await fetchFile(videoFile));
+                ffmpeg.FS("writeFile", "audio.mp3", await fetchFile(audioFile));
 
-                statusDiv.innerText = "Sedang menggabungkan audio & video...";
-                // Proses merge
-                await ffmpeg.exec([
+                statusDiv.innerText = "Sedang menggabungkan (proses render sedang berjalan)...";
+                
+                // 5. MERUBAH: Mengganti `ffmpeg.exec` menjadi `ffmpeg.run`
+                await ffmpeg.run(
                     "-i", "video.mp4",
                     "-i", "audio.mp3",
                     "-c:v", "copy",
                     "-c:a", "aac",
                     "-shortest",
                     "output.mp4"
-                ]);
+                );
 
-                statusDiv.innerText = "Finishing...";
-                const data = await ffmpeg.readFile("output.mp4");
-                const blob = new Blob([data], { type: "video/mp4" });
+                statusDiv.innerText = "Mengekstrak hasil render...";
+                
+                // 6. MERUBAH: Sistem baca file diganti dari `readFile` ke `FS("readFile", ...)`
+                const data = ffmpeg.FS("readFile", "output.mp4");
+                const blob = new Blob([data.buffer], { type: "video/mp4" });
                 const url = URL.createObjectURL(blob);
 
-                // Tampilkan ke video preview
+                // Tampilkan video preview
                 const preview = document.getElementById("preview");
                 preview.src = url;
                 preview.style.display = "block";
@@ -90,10 +109,10 @@
                 a.download = "hasil-video.mp4";
                 a.style.display = "block";
 
-                statusDiv.innerText = "Selesai!";
+                statusDiv.innerText = "Selesai! Silakan cek pratinjau atau unduh.";
             } catch (error) {
                 console.error(error);
-                statusDiv.innerText = "Gagal memproses file. Pastikan browser mendukung SharedArrayBuffer.";
+                statusDiv.innerText = "Terjadi kesalahan saat memproses video: " + error.message;
             } finally {
                 actionBtn.disabled = false;
             }
