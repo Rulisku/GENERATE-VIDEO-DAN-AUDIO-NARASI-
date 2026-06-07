@@ -1,79 +1,47 @@
+# index.html
+
+```html id="h8l1dc"
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
 
-<title>Video + Audio MP4 Generator</title>
-
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+<title>Auto MP4 Generator</title>
 
 <style>
 
 body{
-    background:#111;
-    color:white;
-    font-family:sans-serif;
-    padding:20px;
+  background:#111;
+  color:white;
+  font-family:sans-serif;
+  padding:20px;
 }
 
 .container{
-    max-width:500px;
-    margin:auto;
+  max-width:500px;
+  margin:auto;
 }
 
-h2{
-    text-align:center;
-}
-
-input,
-button{
-    width:100%;
-    margin-top:15px;
-    padding:12px;
-    border-radius:10px;
-    box-sizing:border-box;
-}
-
-button{
-    background:#00b894;
-    color:white;
-    border:none;
-    font-size:18px;
-    cursor:pointer;
-    font-weight:bold;
-}
-
-button:disabled{
-    background:#555;
-    cursor:not-allowed;
+input{
+  width:100%;
+  margin-top:15px;
+  padding:12px;
+  border-radius:10px;
 }
 
 video{
-    width:100%;
-    margin-top:20px;
-    border-radius:10px;
-    display:none;
+  width:100%;
+  margin-top:20px;
+  border-radius:10px;
+  display:none;
 }
 
 #status{
-    text-align:center;
-    margin-top:15px;
-    color:#ffeaa7;
-    font-size:16px;
-    font-weight:bold;
-}
-
-#downloadBtn{
-    display:none;
-    padding:12px;
-    background:#0984e3;
-    color:white;
-    text-decoration:none;
-    border-radius:10px;
-    margin-top:20px;
-    text-align:center;
-    font-weight:bold;
+  margin-top:15px;
+  text-align:center;
+  color:#ffeaa7;
 }
 
 </style>
@@ -83,25 +51,17 @@ video{
 
 <div class="container">
 
-<h2>Generate MP4 Video</h2>
+<h2>Auto MP4 Generator</h2>
 
 <input
 type="file"
-id="videoInput"
+id="video"
 accept="video/*">
 
 <input
 type="file"
-id="audioInput"
+id="audio"
 accept="audio/*">
-
-<button
-id="actionBtn"
-onclick="generateMP4()">
-
-Generate MP4
-
-</button>
 
 <div id="status"></div>
 
@@ -110,221 +70,145 @@ id="preview"
 controls>
 </video>
 
-<a id="downloadBtn">
-Download MP4
-</a>
-
 </div>
 
 <script>
 
-const { createFFmpeg, fetchFile } = FFmpeg;
+const videoInput =
+document.getElementById("video");
+
+const audioInput =
+document.getElementById("audio");
 
 const statusDiv =
 document.getElementById("status");
 
-const actionBtn =
-document.getElementById("actionBtn");
+const preview =
+document.getElementById("preview");
 
-const ffmpeg = createFFmpeg({
+let uploaded = false;
 
-    log:true,
+videoInput.addEventListener(
+"change",
+checkFiles
+);
 
-    corePath:
-    'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
-});
+audioInput.addEventListener(
+"change",
+checkFiles
+);
 
-// realtime progress
-ffmpeg.setProgress(({ ratio }) => {
+async function checkFiles(){
 
-    if(ratio >= 0 && ratio <= 1){
+  const video =
+  videoInput.files[0];
 
-        const percent =
-        Math.round(ratio * 100);
+  const audio =
+  audioInput.files[0];
 
-        statusDiv.innerText =
-        "Rendering: " + percent + "%";
-    }
-});
+  if(video){
 
-async function generateMP4(){
+    preview.src =
+    URL.createObjectURL(video);
 
-    const videoFile =
-    document.getElementById("videoInput").files[0];
+    preview.style.display =
+    "block";
+  }
 
-    const audioFile =
-    document.getElementById("audioInput").files[0];
+  if(video && audio && !uploaded){
 
-    if(!videoFile || !audioFile){
+    uploaded = true;
 
-        alert("Upload video & audio dulu ya!");
+    statusDiv.innerText =
+    "Uploading files...";
 
-        return;
-    }
+    // upload video
+    const videoForm =
+    new FormData();
 
-    // limit size
-    if(videoFile.size > 100 * 1024 * 1024){
+    videoForm.append(
+      "file",
+      video
+    );
 
-        alert("Video terlalu besar max 100MB");
+    // upload audio
+    const audioForm =
+    new FormData();
 
-        return;
-    }
+    audioForm.append(
+      "file",
+      audio
+    );
 
-    try{
+    // contoh upload ke tmpfiles.org
+    const videoUpload =
+    await fetch(
+      "https://tmpfiles.org/api/v1/upload",
+      {
+        method:"POST",
+        body:videoForm
+      }
+    );
 
-        actionBtn.disabled = true;
+    const videoJson =
+    await videoUpload.json();
 
-        actionBtn.innerText =
-        "Loading...";
+    const audioUpload =
+    await fetch(
+      "https://tmpfiles.org/api/v1/upload",
+      {
+        method:"POST",
+        body:audioForm
+      }
+    );
 
-        // load ffmpeg pertama kali
-        if(!ffmpeg.isLoaded()){
+    const audioJson =
+    await audioUpload.json();
 
-            statusDiv.innerText =
-            "Memuat FFmpeg core...";
+    statusDiv.innerText =
+    "Triggering workflow...";
 
-            await ffmpeg.load();
-        }
+    // trigger github actions
+    await fetch(
 
-        actionBtn.innerText =
-        "Processing...";
+      "https://api.github.com/repos/USERNAME/REPO/actions/workflows/render.yml/dispatches",
 
-        statusDiv.innerText =
-        "Membaca file video & audio...";
+      {
 
-        // write files
-        ffmpeg.FS(
-            "writeFile",
-            "video.mp4",
-            await fetchFile(videoFile)
-        );
+        method:"POST",
 
-        ffmpeg.FS(
-            "writeFile",
-            "audio.mp3",
-            await fetchFile(audioFile)
-        );
+        headers:{
 
-        statusDiv.innerText =
-        "Memulai render...";
+          "Accept":
+          "application/vnd.github+json",
 
-        // merge process
-        await ffmpeg.run(
+          "Authorization":
+          "Bearer GITHUB_TOKEN"
+        },
 
-            "-i",
-            "video.mp4",
+        body:JSON.stringify({
 
-            "-i",
-            "audio.mp3",
+          ref:"main",
 
-            "-map",
-            "0:v:0",
+          inputs:{
 
-            "-map",
-            "1:a:0",
+            video_url:
+            videoJson.data.url,
 
-            "-c:v",
-            "copy",
+            audio_url:
+            audioJson.data.url
+          }
+        })
+      }
+    );
 
-            "-c:a",
-            "aac",
-
-            "-shortest",
-
-            "output.mp4"
-        );
-
-        statusDiv.innerText =
-        "Mengekstrak hasil...";
-
-        // read output
-        const data =
-        ffmpeg.FS(
-            "readFile",
-            "output.mp4"
-        );
-
-        const blob =
-        new Blob(
-            [data.buffer],
-            {
-                type:"video/mp4"
-            }
-        );
-
-        const url =
-        URL.createObjectURL(blob);
-
-        // auto clear memory
-        setTimeout(() => {
-
-            URL.revokeObjectURL(url);
-
-        }, 60000);
-
-        // preview
-        const preview =
-        document.getElementById("preview");
-
-        preview.src = url;
-
-        preview.style.display =
-        "block";
-
-        // auto scroll
-        preview.scrollIntoView({
-            behavior:"smooth"
-        });
-
-        // download
-        const downloadBtn =
-        document.getElementById("downloadBtn");
-
-        downloadBtn.href = url;
-
-        downloadBtn.download =
-        "hasil-video.mp4";
-
-        downloadBtn.style.display =
-        "block";
-
-        // clear ffmpeg memory
-        ffmpeg.FS(
-            "unlink",
-            "video.mp4"
-        );
-
-        ffmpeg.FS(
-            "unlink",
-            "audio.mp3"
-        );
-
-        ffmpeg.FS(
-            "unlink",
-            "output.mp4"
-        );
-
-        statusDiv.innerText =
-        "Selesai! Video berhasil dibuat.";
-
-    }catch(error){
-
-        console.error(error);
-
-        statusDiv.innerText =
-        "Terjadi kesalahan: " +
-        error.message;
-
-    }finally{
-
-        actionBtn.disabled = false;
-
-        actionBtn.innerText =
-        "Generate MP4";
-    }
+    statusDiv.innerText =
+    "Workflow started...";
+  }
 }
 
 </script>
 
 </body>
-    </html>
+</html>
+```
