@@ -1,0 +1,191 @@
+```html id="z4m7vk"
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>MP4 Generator</title>
+
+<style>
+
+body{
+  background:#111;
+  color:white;
+  font-family:sans-serif;
+  padding:20px;
+}
+
+.container{
+  max-width:500px;
+  margin:auto;
+}
+
+input,button{
+  width:100%;
+  margin-top:15px;
+  padding:12px;
+  border-radius:10px;
+  box-sizing:border-box;
+}
+
+button{
+  background:#00b894;
+  border:none;
+  color:white;
+  font-size:18px;
+}
+
+video{
+  width:100%;
+  margin-top:20px;
+  border-radius:10px;
+  display:none;
+}
+
+#status{
+  margin-top:15px;
+  text-align:center;
+  color:#ffeaa7;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Video + Audio MP4</h2>
+
+<input
+type="file"
+id="video"
+accept="video/*">
+
+<input
+type="file"
+id="audio"
+accept="audio/*">
+
+<button onclick="generate()">
+Generate MP4
+</button>
+
+<div id="status"></div>
+
+<video
+id="preview"
+controls>
+</video>
+
+</div>
+
+<script>
+
+async function generate(){
+
+  const video =
+  document
+  .getElementById("video")
+  .files[0];
+
+  const audio =
+  document
+  .getElementById("audio")
+  .files[0];
+
+  const status =
+  document
+  .getElementById("status");
+
+  const preview =
+  document
+  .getElementById("preview");
+
+  if(!video || !audio){
+
+    alert(
+      "Upload video & audio"
+    );
+
+    return;
+  }
+
+  status.innerText =
+  "Uploading & rendering...";
+
+  const form =
+  new FormData();
+
+  form.append(
+    "video",
+    video
+  );
+
+  form.append(
+    "audio",
+    audio
+  );
+
+  try{
+
+    const res =
+    await fetch(
+
+      "/api/merge",
+
+      {
+        method:"POST",
+        body:form
+      }
+    );
+
+    const blob =
+    await res.blob();
+
+    const url =
+    URL.createObjectURL(blob);
+
+    preview.src =
+    url;
+
+    preview.style.display =
+    "block";
+
+    // auto download
+    const a =
+    document.createElement("a");
+
+    a.href = url;
+
+    a.download =
+    "hasil-video.mp4";
+
+    a.click();
+
+    status.innerText =
+    "Selesai!";
+  }
+  catch(err){
+
+    console.log(err);
+
+    status.innerText =
+    err.message;
+  }
+}
+
+</script>
+
+</body>
+
+</html>
+```
+  
